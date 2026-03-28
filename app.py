@@ -1,65 +1,54 @@
 import os
 import csv
-from datetime import datetime
 from flask import Flask, render_template, send_file
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'plomberie_ia_enterprise_2026'
+app.config['SECRET_KEY'] = 'plomberie-secret-123'
+# On autorise toutes les connexions pour que le PC et le TEL se parlent
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-order_counter = 0
-
-def get_csv_name():
-    return f"RAPPORT_INTERVENTIONS_{datetime.now().strftime('%d-%m-%Y')}.csv"
+# Dossier pour le rapport Excel/CSV
+REPORT_FILE = 'rapport_interventions.csv'
 
 @app.route('/')
 def index():
-    # Dashboard principal de l'artisan
     return render_template('index.html')
 
 @app.route('/ia_test')
 def cashier():
-    # Simulateur de réception d'appels IA
     return render_template('cashier.html')
 
-@app.route('/download_excel')
-def download_excel():
-    filename = get_csv_name()
-    if os.path.exists(filename):
-        return send_file(filename, as_attachment=True)
-    return "Aucun rapport généré pour aujourd'hui.", 404
-
+# --- C'EST CETTE PARTIE QUI FAIT LE PONT ---
 @socketio.on('new_order')
 def handle_new_order(data):
-    global order_counter
-    order_counter += 1
-    data['order_num'] = f"{order_counter:03d}"
-    data['time'] = datetime.now().strftime("%H:%M")
-    # Diffusion immédiate vers le smartphone de l'artisan
+    print("Nouvelle mission reçue de l'IA:", data)
+    # On renvoie la mission à TOUS les écrans connectés (ton téléphone)
     emit('new_order', data, broadcast=True)
 
 @socketio.on('finish_order_excel')
-def handle_finish_excel(data):
-    filename = get_csv_name()
-    file_exists = os.path.isfile(filename)
-    try:
-        with open(filename, mode='a', newline='', encoding='utf-8-sig') as f:
-            writer = csv.writer(f, delimiter=';')
-            if not file_exists:
-                writer.writerow(['HEURE', 'N° TICKET', 'CLIENT', 'TELEPHONE', 'TYPE', 'DIAGNOSTIC IA', 'MONTANT FIXÉ'])
-            writer.writerow([
-                data.get('time'),
-                data.get('order_num'),
-                data.get('nom'),
-                data.get('tel'),
-                data.get('type'),
-                data.get('pizza'), # Contient le diagnostic de la panne
-                f"{data.get('total')}€"
-            ])
-    except Exception as e:
-        print(f"Erreur d'écriture Excel : {e}")
+def save_to_excel(data):
+    file_exists = os.path.isfile(REPORT_FILE)
+    with open(REPORT_FILE, mode='a', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(['ID', 'Date/Heure', 'Type', 'Client', 'Panne', 'Total (€)', 'Adresse'])
+        
+        writer.writerow([
+            data.get('id'),
+            data.get('time'),
+            data.get('type'),
+            data.get('nom'),
+            data.get('pizza'),
+            data.get('total'),
+            data.get('adresse')
+        ])
+
+@app.route('/download_excel')
+def download_excel():
+    if os.path.exists(REPORT_FILE):
+        return send_file(REPORT_FILE, as_attachment=True)
+    return "Aucun rapport généré pour le moment.", 404
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=5000)
