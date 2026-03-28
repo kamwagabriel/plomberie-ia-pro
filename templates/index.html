@@ -6,26 +6,33 @@
     <title>DASHBOARD PLOMBIER PRO</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        :root { --bg: #0a0f1d; --card: #161e31; --blue: #3b82f6; --green: #10b981; --red: #ef4444; }
+        :root { --bg: #0a0f1d; --card: #161e31; --blue: #3b82f6; --green: #10b981; --red: #ef4444; --gray: #94a3b8; }
         body { font-family: sans-serif; background: var(--bg); color: white; margin: 0; padding: 12px; }
         .header { display: flex; justify-content: space-between; padding: 15px; background: var(--card); border-radius: 12px; margin-bottom: 20px; border: 1px solid #1e293b; }
         .ticket { background: var(--card); border-radius: 20px; border: 1px solid #2d3748; overflow: hidden; margin-bottom: 15px; animation: slideIn 0.3s ease-out; }
         @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .ticket-h { padding: 10px; background: #1e293b; font-size: 11px; color: #94a3b8; display: flex; justify-content: space-between; }
+        .ticket-h { padding: 10px; background: #1e293b; font-size: 11px; color: var(--gray); display: flex; justify-content: space-between; }
         .ticket-b { padding: 20px; }
         .panne { font-size: 22px; font-weight: bold; color: white; }
         .prix-tag { background: rgba(16, 185, 129, 0.1); color: var(--green); padding: 8px; border-radius: 8px; font-weight: bold; margin: 15px 0; display: inline-block; border: 1px solid var(--green); }
         .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .btn-call { background: var(--green); color: white; text-decoration: none; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; }
         .btn-gps { background: var(--blue); color: white; text-decoration: none; padding: 15px; border-radius: 10px; text-align: center; font-weight: bold; }
-        .btn-done { width: 100%; background: #2d3748; border: none; color: #94a3b8; padding: 15px; margin-top: 15px; border-radius: 10px; font-weight: bold; }
+        
+        .footer-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .btn-done { background: #2d3748; border: 2px solid var(--green); color: var(--green); padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        .btn-cancel { background: #2d3748; border: 2px solid var(--red); color: var(--red); padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; }
+        
+        /* Style spécial pour URGENCE CRITIQUE */
+        .urgent-border { border: 2px solid var(--red) !important; box-shadow: 0 0 15px rgba(239, 68, 68, 0.3); }
     </style>
 </head>
 <body>
     <div class="header">
-        <div style="font-weight: 800;">🛠️ MISSIONS IA</div>
+        <div style="font-weight: 800;">🛠️ MISSIONS EN COURS</div>
         <div id="rev" style="color:var(--green); font-weight: 900;">0.00€</div>
     </div>
+    
     <div id="kds-grid"></div>
 
     <audio id="notif-sound" preload="auto">
@@ -38,11 +45,10 @@
     const sound = document.getElementById('notif-sound');
 
     socket.on('new_order', (data) => {
-        // JOUER LE SON
-        sound.play().catch(e => console.log("L'interaction utilisateur est requise pour le son"));
+        sound.play().catch(e => {});
 
         const ticket = document.createElement('div');
-        ticket.className = 'ticket';
+        ticket.className = 'ticket' + (data.pizza.includes('CRITIQUE') ? ' urgent-border' : '');
         ticket.id = `t-${data.id}`;
         ticket.dataset.info = JSON.stringify(data);
         const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(data.adresse)}`;
@@ -51,30 +57,8 @@
             <div class="ticket-h"><span>TICKET #${data.order_num}</span><span>${data.time}</span></div>
             <div class="ticket-b">
                 <div class="panne">${data.pizza}</div>
-                <p style="color:#94a3b8; font-size:14px;"><strong>${data.nom}</strong><br>📍 ${data.adresse}</p>
-                <div class="prix-tag">PRIX ESTIMÉ : ${data.total}€</div>
+                <p style="color:#94a3b8; font-size:14px;">📍 ${data.adresse}<br>👤 ${data.nom}</p>
+                <div class="prix-tag">DEVIS IA : ${data.total}€</div>
                 <div class="action-grid">
                     <a href="tel:${data.tel}" class="btn-call">📞 APPELER</a>
-                    <a href="${mapUrl}" target="_blank" class="btn-gps">📍 GPS</a>
-                </div>
-                <button class="btn-done" onclick="terminer('${data.id}')">TERMINER ✅</button>
-            </div>
-        `;
-        document.getElementById('kds-grid').prepend(ticket);
-        if(window.navigator.vibrate) window.navigator.vibrate(200);
-    });
-
-    function terminer(id) {
-        const t = document.getElementById(`t-${id}`);
-        const data = JSON.parse(t.dataset.info);
-        totalCA += parseFloat(data.total);
-        document.getElementById('rev').innerText = totalCA.toFixed(2) + "€";
-        socket.emit('finish_order_excel', data);
-        t.remove();
-    }
-
-    // Activer le son au premier clic pour bypasser les restrictions navigateurs
-    document.body.addEventListener('click', () => { sound.load(); }, {once: true});
-</script>
-</body>
-</html>
+                    <a
