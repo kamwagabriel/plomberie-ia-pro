@@ -3,34 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IA SIMULATEUR</title>
+    <title>IA SIMULATEUR - PRO</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        body { font-family: sans-serif; background: #0f172a; color: white; padding: 20px; text-align: center; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 400px; margin: 20px auto; }
-        .btn { background: #1e293b; border: 2px solid #334155; color: white; padding: 20px; border-radius: 12px; cursor: pointer; font-weight: bold; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: white; padding: 20px; text-align: center; }
+        .container { max-width: 450px; margin: auto; background: #1e293b; padding: 25px; border-radius: 20px; border: 1px solid #334155; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 15px 0; }
+        .label { font-size: 12px; color: #94a3b8; text-transform: uppercase; margin-top: 20px; display: block; text-align: left; }
+        .btn { background: #0f172a; border: 2px solid #334155; color: white; padding: 15px; border-radius: 12px; cursor: pointer; font-weight: bold; transition: 0.2s; }
         .btn.active { border-color: #3b82f6; background: #1e3a8a; }
-        .btn-send { background: #ef4444; color: white; width: 100%; max-width: 400px; border: none; padding: 20px; border-radius: 12px; font-weight: bold; font-size: 18px; cursor: pointer; margin-top: 20px; }
+        /* Couleurs Spécifiques Urgence */
+        #s-Urgent.active { border-color: #f59e0b; background: #78350f; }
+        #s-Critique.active { border-color: #ef4444; background: #7f1d1d; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        
+        .total-box { margin-top: 25px; padding: 15px; background: #0f172a; border-radius: 10px; font-size: 20px; font-weight: bold; color: #10b981; border: 1px dashed #10b981; }
+        .btn-send { background: #3b82f6; color: white; width: 100%; border: none; padding: 20px; border-radius: 15px; font-weight: bold; font-size: 18px; cursor: pointer; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <h2 style="color:#3b82f6;">🤖 SIMULATEUR APPEL IA</h2>
-    <div class="grid">
-        <button class="btn pz" onclick="setP('Fuite d\'eau 💧', 90)">Fuite d'eau</button>
-        <button class="btn pz" onclick="setP('Débouchage 🚽', 130)">Débouchage</button>
-        <button class="btn pz" onclick="setP('Chauffe-eau 🌡️', 250)">Chauffe-eau</button>
-        <button class="btn pz" onclick="setP('Réparation 🔧', 75)">Autre</button>
+    <div class="container">
+        <h2 style="margin-top:0;">🤖 IA RECEPTIONIST</h2>
+        
+        <span class="label">Niveau de Gravité :</span>
+        <div class="grid" style="grid-template-columns: 1fr 1fr 1fr;">
+            <button id="s-Standard" class="btn active" onclick="setS('Standard', 0)">BASSE</button>
+            <button id="s-Urgent" class="btn" onclick="setS('Urgent', 40)">URGENT</button>
+            <button id="s-Critique" class="btn" onclick="setS('Critique', 100)">CRITIQUE</button>
+        </div>
+
+        <span class="label">Panne détectée par l'IA :</span>
+        <div class="grid">
+            <button class="btn pz" onclick="setP('Fuite d\'eau 💧', 90)">Fuite d'eau</button>
+            <button class="btn pz" onclick="setP('Débouchage 🚽', 130)">Débouchage</button>
+            <button class="btn pz" onclick="setP('Chauffe-eau 🌡️', 250)">Chauffe-eau</button>
+            <button class="btn pz" onclick="setP('Réparation 🔧', 75)">Autre</button>
+        </div>
+
+        <div class="total-box">Total estimé : <span id="display-total">0.00</span>€</div>
+        <button class="btn-send" onclick="valider()">ENVOYER AU PLOMBIER ➔</button>
     </div>
-    <button class="btn-send" onclick="valider()">TRANSMETTRE AU PLOMBIER ➔</button>
 
 <script>
     const socket = io();
-    let piz='', baseP=0;
-    function setP(n,p){ piz=n; baseP=p; document.querySelectorAll('.pz').forEach(b => { b.classList.remove('active'); if(b.innerText.includes(n.split(' ')[0])) b.classList.add('active'); }); }
+    let sz='Standard', addP=0, piz='', baseP=0;
+
+    function setS(s,p){ 
+        sz=s; addP=p; 
+        document.querySelectorAll('.btn:not(.pz)').forEach(b => b.classList.remove('active'));
+        document.getElementById('s-' + s).classList.add('active');
+        updPrice(); 
+    }
+
+    function setP(n,p){ 
+        piz=n; baseP=p; 
+        document.querySelectorAll('.pz').forEach(b => {
+            b.classList.remove('active');
+            if(b.innerText.includes(n.split(' ')[0])) b.classList.add('active');
+        });
+        updPrice(); 
+    }
+
+    function updPrice(){
+        const total = (parseFloat(baseP) + parseFloat(addP)).toFixed(2);
+        document.getElementById('display-total').innerText = total;
+    }
+
     function valider(){
-        if(!piz) return alert("Sélectionnez une panne");
-        socket.emit('new_order', { id: Date.now(), type: "DÉPANNAGE", nom: "M. Martin", tel: "0612345678", pizza: piz, total: baseP.toFixed(2), adresse: "14 Rue des Lilas, Paris" });
-        alert("Envoyé !");
+        if(!piz) return alert("L'IA doit choisir une panne !");
+        const finalPrice = (baseP + addP).toFixed(2);
+        socket.emit('new_order', {
+            id: Date.now(), type: "DÉPANNAGE", nom: "M. Martin", tel: "0612345678",
+            pizza: piz + " [" + sz.toUpperCase() + "]", 
+            total: finalPrice, adresse: "14 Rue des Lilas, Paris"
+        });
+        alert("Alerte " + sz + " envoyée !");
     }
 </script>
 </body>
